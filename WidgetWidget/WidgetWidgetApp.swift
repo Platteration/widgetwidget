@@ -25,11 +25,16 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         let operation = CKAcceptSharesOperation(shareMetadatas: [cloudKitShareMetadata])
 
         operation.perShareResultBlock = { metadata, result in
-            guard case .success = result else { return }
+            guard
+                case .success = result,
+                let rootRecordID = metadata.hierarchicalRootRecordID
+            else {
+                return
+            }
 
-            SharedStore.savePairRecordID(metadata.rootRecordID)
+            SharedStore.savePairRecordID(rootRecordID)
             CloudKitPushService.ensureSubscription(
-                for: metadata.rootRecordID,
+                for: rootRecordID,
                 container: container
             )
             WidgetCenter.shared.reloadAllTimelines()
