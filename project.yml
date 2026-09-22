@@ -1,0 +1,63 @@
+name: WidgetWidget
+options:
+  bundleIdPrefix: com.platteration
+  deploymentTarget:
+    iOS: "17.0"
+
+targets:
+  WidgetWidget:
+    type: application
+    platform: iOS
+    sources:
+      - path: WidgetWidget
+        excludes:
+          - WidgetWidget.entitlements
+      - path: Shared
+    entitlements:
+      path: WidgetWidget/WidgetWidget.entitlements
+    info:
+      path: WidgetWidget/Info.plist
+      properties:
+        CFBundleDisplayName: WidgetWidget
+        CKSharingSupported: true
+        UIBackgroundModes:
+          - fetch
+          - remote-notification
+        NSPhotoLibraryUsageDescription: Select a meme to send to your shared widget.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.platteration.widgetwidget
+            CFBundleURLSchemes:
+              - widgetwidget
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.platteration.widgetwidget
+        PRODUCT_NAME: WidgetWidget
+        SWIFT_VERSION: 5.10
+        CODE_SIGN_STYLE: Automatic
+    dependencies:
+      - target: MemeWidget
+
+  MemeWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: MemeWidget
+        excludes:
+          - MemeWidget.entitlements
+      - path: Shared
+    entitlements:
+      path: MemeWidget/MemeWidget.entitlements
+    info:
+      path: MemeWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Meme Widget
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.platteration.widgetwidget.MemeWidget
+        PRODUCT_NAME: MemeWidget
+        SWIFT_VERSION: 5.10
+        CODE_SIGN_STYLE: Automatic
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
