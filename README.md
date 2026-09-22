@@ -13,6 +13,10 @@ One friend creates a private CloudKit record zone and invites another person thr
 - Meme image stored as a `CKAsset`
 - Shared root record points directly to the current meme, so the widget does not need a CloudKit query/index
 - Local App Group cache for offline/failure fallback
+- Bounded eight-item recent meme history with automatic old-asset cleanup
+- Image downscaling/compression before CloudKit upload
+- Widget tap deep-links back into the app
+- CloudKit change subscriptions that request WidgetKit reloads after remote sends
 - Manual refresh plus WidgetKit timeline refresh
 - Creator can reopen the iCloud invitation sheet
 - Participant accepts the standard iCloud share link and is connected automatically
@@ -42,8 +46,9 @@ Before running on devices:
 2. Create/enable the App Group above for both targets.
 3. Create/enable the iCloud container above with CloudKit for both targets.
 4. Confirm the main app has CloudKit Sharing enabled.
-5. Run once against the CloudKit **Development** environment so the `Pair` and `Meme` record types/fields are created.
-6. Before TestFlight/App Store distribution, deploy the development schema to **Production** in CloudKit Dashboard.
+5. Enable Push Notifications for the app ID and Background Modes for **Background fetch** and **Remote notifications**.
+6. Run once against the CloudKit **Development** environment so the `Pair` and `Meme` record types/fields are created.
+7. Before TestFlight/App Store distribution, deploy the development schema to **Production** in CloudKit Dashboard.
 
 If your Developer account uses different identifiers, update `project.yml`, both entitlement files, and the constants in `Shared/SharedStore.swift`.
 
@@ -56,7 +61,8 @@ Both devices should be signed in to iCloud.
 3. Device B: open the invitation link and accept the CloudKit share.
 4. On both devices, add **Shared Meme** from the iOS widget gallery.
 5. Either device: pick an image and tap **Send to Widget**.
-6. Use **Refresh** in the app if you want to verify immediately. WidgetKit also asks CloudKit for the latest meme on its timeline refresh.
+6. Send several memes in both directions and confirm **Recent memes** retains the newest eight.
+7. The app registers for CloudKit change notifications and requests a WidgetKit reload after remote changes. Use **Refresh** for deterministic manual verification because iOS still controls widget reload timing.
 
 ## Architecture
 
@@ -80,7 +86,8 @@ MemeWidget extension
 ## Current MVP limits
 
 - Images are displayed as static images; animated GIF playback and video are not implemented.
-- Widget refresh timing is ultimately controlled/throttled by iOS. Sending from the local device explicitly reloads WidgetKit; a remote friend's change appears on the recipient widget when WidgetKit next grants a refresh.
+- Widget refresh timing is ultimately controlled/throttled by iOS. CloudKit pushes and local sends request reloads, but the system decides when WidgetKit grants them.
+- Recent history is capped at eight memes; older CloudKit meme records are deleted as new ones arrive.
 - The app currently maintains one connected shared widget per device.
 - Disconnecting removes the local connection only. The share owner manages participants from the iCloud sharing sheet.
 - There is no moderation/reporting layer; only invite people you trust.
