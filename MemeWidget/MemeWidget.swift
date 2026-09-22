@@ -116,6 +116,7 @@ struct MemeWidgetEntryView: View {
             }
         }
         .containerBackground(.black, for: .widget)
+        .widgetURL(URL(string: "widgetwidget://latest"))
     }
 }
 
