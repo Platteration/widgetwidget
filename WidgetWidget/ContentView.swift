@@ -139,6 +139,11 @@ struct ContentView: View {
         ScrollView {
             VStack(spacing: 24) {
                 latestCard
+
+                if service.history.count > 1 {
+                    recentHistory
+                }
+
                 composer
 
                 HStack {
@@ -209,6 +214,39 @@ struct ContentView: View {
                     description: Text("Send the first one below.")
                 )
                 .frame(minHeight: 220)
+            }
+        }
+    }
+
+    private var recentHistory: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Recent memes")
+                .font(.headline)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 12) {
+                    ForEach(service.history) { item in
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let image = UIImage(data: item.meme.imageData) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 140, height: 120)
+                                    .clipped()
+                                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                            }
+
+                            Text(item.meme.senderName)
+                                .font(.caption.weight(.semibold))
+                                .lineLimit(1)
+
+                            Text(item.meme.sentAt, style: .relative)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .frame(width: 140, alignment: .leading)
+                    }
+                }
             }
         }
     }
