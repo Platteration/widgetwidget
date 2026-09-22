@@ -2,10 +2,18 @@ import CloudKit
 import Foundation
 import WidgetKit
 
+struct MemeHistoryItem: Identifiable {
+    let id: String
+    let meme: LatestMeme
+}
+
 @MainActor
 final class CloudKitService: ObservableObject {
+    private static let historyLimit = 8
+
     @Published private(set) var pairRecordID: CKRecord.ID?
     @Published private(set) var latest: LatestMeme?
+    @Published private(set) var history: [MemeHistoryItem] = []
     @Published var isBusy = false
     @Published var errorMessage: String?
     @Published var displayName: String
@@ -53,6 +61,7 @@ final class CloudKitService: ObservableObject {
             let pair = CKRecord(recordType: "Pair", recordID: pairID)
             pair["createdAt"] = Date() as CKRecordValue
             pair["title"] = "Meme Widget" as CKRecordValue
+            pair["recentMemeRecordNames"] = [] as NSArray
 
             let share = CKShare(rootRecord: pair)
             share[CKShare.SystemFieldKey.title] = "Meme Widget" as CKRecordValue
@@ -130,10 +139,23 @@ final class CloudKitService: ObservableObject {
             meme["senderName"] = sender as CKRecordValue
             meme["sentAt"] = sentAt as CKRecordValue
 
+            let previousNames = recentRecordNames(from: pair)
+            let allNames = [memeID.recordName] + previousNames.filter { $0 != memeID.recordName }
+            let keptNames = Array(allNames.prefix(Self.historyLimit))
+            let obsoleteIDs = allNames.dropFirst(Self.historyLimit).map {
+                CKRecord.ID(recordName: $0, zoneID: pairRecordID.zoneID)
+            }
+
             pair["latestMemeRecordName"] = memeID.recordName as CKRecordValue
             pair["latestSentAt"] = sentAt as CKRecordValue
+            pair["recentMemeRecordNames"] = keptNames as NSArray
 
-            try await modifyRecords([meme, pair], in: database, atomically: true)
+            try await modifyRecords(
+                [meme, pair],
+                deleting: obsoleteIDs,
+                in: database,
+                atomically: true
+            )
 
             let latestMeme = LatestMeme(
                 imageData: imageData,
@@ -143,6 +165,11 @@ final class CloudKitService: ObservableObject {
             )
             SharedStore.cacheLatest(latestMeme)
             latest = latestMeme
+            history = (
+                [MemeHistoryItem(id: memeID.recordName, meme: latestMeme)]
+                + history.filter { $0.id != memeID.recordName }
+            ).prefix(Self.historyLimit).map { $0 }
+
             WidgetCenter.shared.reloadAllTimelines()
             return true
         } ?? false
@@ -151,14 +178,40 @@ final class CloudKitService: ObservableObject {
     func refreshLatest() async {
         guard let pairRecordID else {
             latest = nil
+            history = []
             return
         }
 
         do {
-            let meme = try await fetchLatest(pairRecordID: pairRecordID)
-            if let meme {
-                SharedStore.cacheLatest(meme)
-                latest = meme
+            let database = database(for: pairRecordID)
+            let pair = try await database.record(for: pairRecordID)
+            let names = recentRecordNames(from: pair)
+
+            guard !names.isEmpty else {
+                latest = nil
+                history = []
+                return
+            }
+
+            let ids = names.prefix(Self.historyLimit).map {
+                CKRecord.ID(recordName: $0, zoneID: pairRecordID.zoneID)
+            }
+            let results = try await database.records(for: ids)
+
+            let loadedHistory = ids.compactMap { id -> MemeHistoryItem? in
+                guard
+                    case .success(let record)? = results[id],
+                    let meme = try? decodeMeme(record)
+                else {
+                    return nil
+                }
+                return MemeHistoryItem(id: id.recordName, meme: meme)
+            }
+
+            history = loadedHistory
+            if let newest = loadedHistory.first?.meme {
+                SharedStore.cacheLatest(newest)
+                latest = newest
             }
         } catch {
             if latest == nil {
@@ -172,25 +225,25 @@ final class CloudKitService: ObservableObject {
         SharedStore.clearPair()
         pairRecordID = nil
         latest = nil
+        history = []
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    private func fetchLatest(pairRecordID: CKRecord.ID) async throws -> LatestMeme? {
-        let database = database(for: pairRecordID)
-        let pair = try await database.record(for: pairRecordID)
-
-        guard let latestRecordName = pair["latestMemeRecordName"] as? String else {
-            return nil
+    private func recentRecordNames(from pair: CKRecord) -> [String] {
+        if let names = pair["recentMemeRecordNames"] as? [String], !names.isEmpty {
+            return names
         }
 
-        let memeID = CKRecord.ID(
-            recordName: latestRecordName,
-            zoneID: pairRecordID.zoneID
-        )
-        let meme = try await database.record(for: memeID)
+        if let latestName = pair["latestMemeRecordName"] as? String {
+            return [latestName]
+        }
 
+        return []
+    }
+
+    private func decodeMeme(_ record: CKRecord) throws -> LatestMeme {
         guard
-            let asset = meme["image"] as? CKAsset,
+            let asset = record["image"] as? CKAsset,
             let fileURL = asset.fileURL
         else {
             throw MemeWidgetError.missingImage
@@ -198,9 +251,9 @@ final class CloudKitService: ObservableObject {
 
         return LatestMeme(
             imageData: try Data(contentsOf: fileURL),
-            caption: meme["caption"] as? String ?? "",
-            senderName: meme["senderName"] as? String ?? "Friend",
-            sentAt: meme["sentAt"] as? Date ?? meme.creationDate ?? .now
+            caption: record["caption"] as? String ?? "",
+            senderName: record["senderName"] as? String ?? "Friend",
+            sentAt: record["sentAt"] as? Date ?? record.creationDate ?? .now
         )
     }
 
@@ -224,11 +277,15 @@ final class CloudKitService: ObservableObject {
 
     private func modifyRecords(
         _ records: [CKRecord],
+        deleting recordIDsToDelete: [CKRecord.ID] = [],
         in database: CKDatabase,
         atomically: Bool
     ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            let operation = CKModifyRecordsOperation(recordsToSave: records)
+            let operation = CKModifyRecordsOperation(
+                recordsToSave: records,
+                recordIDsToDelete: recordIDsToDelete
+            )
             operation.isAtomic = atomically
             operation.savePolicy = .allKeys
             operation.modifyRecordsResultBlock = { result in
