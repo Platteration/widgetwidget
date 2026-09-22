@@ -211,7 +211,7 @@ final class CloudKitService: ObservableObject {
     }
 
     private func saveZone(_ zone: CKRecordZone, in database: CKDatabase) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             database.save(zone) { _, error in
                 if let error {
                     continuation.resume(throwing: error)
@@ -227,7 +227,7 @@ final class CloudKitService: ObservableObject {
         in database: CKDatabase,
         atomically: Bool
     ) async throws {
-        try await withCheckedThrowingContinuation { continuation in
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             let operation = CKModifyRecordsOperation(recordsToSave: records)
             operation.isAtomic = atomically
             operation.savePolicy = .allKeys
