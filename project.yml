@@ -21,6 +21,10 @@ targets:
         CFBundleDisplayName: WidgetWidget
         CKSharingSupported: true
         NSPhotoLibraryUsageDescription: Select a meme to send to your shared widget.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.platteration.widgetwidget
+            CFBundleURLSchemes:
+              - widgetwidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.platteration.widgetwidget
