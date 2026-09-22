@@ -65,7 +65,15 @@ struct ContentView: View {
         .onChange(of: selectedItem) { _, newValue in
             guard let newValue else { return }
             Task {
-                draftImageData = try? await newValue.loadTransferable(type: Data.self)
+                do {
+                    guard let rawData = try await newValue.loadTransferable(type: Data.self) else {
+                        return
+                    }
+                    draftImageData = try MemeImageProcessor.prepare(rawData)
+                } catch {
+                    service.errorMessage = error.localizedDescription
+                    draftImageData = nil
+                }
             }
         }
         .task {
