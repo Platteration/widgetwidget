@@ -54,6 +54,9 @@ struct ContentView: View {
             service.reloadFromStore()
             Task { await service.refreshLatest() }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .cloudKitDidChange)) { _ in
+            Task { await service.refreshLatest() }
+        }
         .onChange(of: scenePhase) { _, phase in
             guard phase == .active else { return }
             service.reloadFromStore()
