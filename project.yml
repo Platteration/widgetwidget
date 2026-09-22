@@ -20,6 +20,9 @@ targets:
       properties:
         CFBundleDisplayName: WidgetWidget
         CKSharingSupported: true
+        UIBackgroundModes:
+          - fetch
+          - remote-notification
         NSPhotoLibraryUsageDescription: Select a meme to send to your shared widget.
         CFBundleURLTypes:
           - CFBundleURLName: com.platteration.widgetwidget
