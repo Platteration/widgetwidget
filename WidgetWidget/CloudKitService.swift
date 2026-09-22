@@ -24,6 +24,10 @@ final class CloudKitService: ObservableObject {
         pairRecordID = SharedStore.pairRecordID()
         latest = SharedStore.cachedLatest()
         displayName = SharedStore.displayName()
+
+        if let pairRecordID {
+            CloudKitPushService.ensureSubscription(for: pairRecordID, container: container)
+        }
     }
 
     var isConnected: Bool {
@@ -76,6 +80,7 @@ final class CloudKitService: ObservableObject {
 
             SharedStore.savePairRecordID(pairID)
             pairRecordID = pairID
+            CloudKitPushService.ensureSubscription(for: pairID, container: container)
             WidgetCenter.shared.reloadAllTimelines()
             return share
         }
