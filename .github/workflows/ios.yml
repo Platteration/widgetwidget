@@ -2,7 +2,7 @@ name: iOS Build
 
 on:
   push:
-    branches: [main, feature/shared-meme-widget]
+    branches: [main]
   pull_request:
 
 jobs:
